@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>카톡 채팅 → 액션 아이템</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --ink:#16181d; --muted:#6b7280; --line:#e3e6ea;
+    --accent:#3b5bdb; --accent-soft:#eef1fd;
+    --warn:#b45309; --warn-soft:#fef4e6; --danger:#b42318; --danger-soft:#fdeceb;
+    --ok:#1a7f4b; --ok-soft:#e9f7ef;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#14161a; --card:#1b1e24; --ink:#e8eaed; --muted:#9aa3af; --line:#2b3038;
+      --accent:#7f9cf5; --accent-soft:#232a3d;
+      --warn:#f0b45e; --warn-soft:#332a19; --danger:#f28b82; --danger-soft:#35211f;
+      --ok:#6ee7a8; --ok-soft:#16291f;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.65 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:860px; margin:0 auto; padding:32px 20px 80px}
+  h1{font-size:22px; margin:0 0 4px; letter-spacing:-.02em}
+  .sub{color:var(--muted); font-size:13.5px; margin:0 0 24px}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:20px; margin-bottom:16px}
+  .banner{border-radius:10px; padding:11px 14px; font-size:13.5px; margin-bottom:16px; border:1px solid transparent}
+  .banner.warn{background:var(--warn-soft); border-color:var(--warn); color:var(--warn)}
+  .banner.ok{background:var(--ok-soft); border-color:var(--ok); color:var(--ok)}
+  .banner code{background:rgba(128,128,128,.18); padding:1px 5px; border-radius:4px; font-size:12.5px}
+
+  #drop{
+    border:2px dashed var(--line); border-radius:12px; padding:38px 20px; text-align:center;
+    background:var(--card); cursor:pointer; transition:border-color .15s, background .15s;
+  }
+  #drop:hover,#drop.over{border-color:var(--accent); background:var(--accent-soft)}
+  #drop strong{display:block; font-size:15px; margin-bottom:4px}
+  #drop span{color:var(--muted); font-size:13px}
+
+  .row{display:flex; gap:16px; flex-wrap:wrap; align-items:flex-end}
+  .field{display:flex; flex-direction:column; gap:5px; min-width:150px}
+  label{font-size:12.5px; color:var(--muted); font-weight:600}
+  select,input[type=date]{
+    font:inherit; font-size:14px; padding:7px 10px; border:1px solid var(--line);
+    border-radius:8px; background:var(--card); color:var(--ink);
+  }
+  button{
+    font:inherit; font-weight:600; font-size:14px; padding:9px 18px; border-radius:8px;
+    border:1px solid transparent; background:var(--accent); color:#fff; cursor:pointer;
+  }
+  button:disabled{opacity:.5; cursor:not-allowed}
+  button.ghost{background:transparent; border-color:var(--line); color:var(--ink); font-weight:500; padding:6px 12px; font-size:13px}
+
+  .stats{display:flex; gap:22px; flex-wrap:wrap; margin:0 0 4px}
+  .stat b{display:block; font-size:20px; letter-spacing:-.02em}
+  .stat span{font-size:12px; color:var(--muted)}
+  details{margin-top:12px; font-size:13px}
+  summary{cursor:pointer; color:var(--muted); font-weight:600}
+  .drops{margin-top:10px; max-height:220px; overflow:auto; border:1px solid var(--line); border-radius:8px}
+  .drops div{padding:5px 10px; border-bottom:1px solid var(--line); font-size:12.5px; color:var(--muted)}
+  .drops div:last-child{border-bottom:none}
+  .drops .why{color:var(--accent); font-weight:600; margin-right:8px}
+
+  progress{width:100%; height:7px; margin-top:12px}
+  .phase{font-size:13px; color:var(--muted); margin-top:8px}
+
+  h2{font-size:15px; margin:26px 0 10px; letter-spacing:-.01em; display:flex; align-items:center; gap:8px}
+  .count{font-size:12px; font-weight:600; color:var(--muted); background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:1px 8px}
+  .item{border:1px solid var(--line); border-radius:10px; padding:13px 15px; margin-bottom:9px; background:var(--card)}
+  .item .top{display:flex; gap:9px; align-items:flex-start}
+  .item input[type=checkbox]{margin-top:4px; flex:none; width:15px; height:15px; accent-color:var(--accent)}
+  .item .body{flex:1; min-width:0}
+  .item .txt{font-weight:600; letter-spacing:-.01em}
+  .item.done .txt{text-decoration:line-through; opacity:.5}
+  .item .meta{font-size:12.5px; color:var(--muted); margin-top:3px}
+  .tag{display:inline-block; font-size:11px; font-weight:700; padding:1px 7px; border-radius:5px; margin-right:6px; vertical-align:1px}
+  .tag.unsure{background:var(--warn-soft); color:var(--warn)}
+  .tag.high{background:var(--danger-soft); color:var(--danger)}
+  .tag.mid{background:var(--warn-soft); color:var(--warn)}
+  .tag.low{background:var(--bg); color:var(--muted)}
+  .src{margin-top:9px; border-left:2px solid var(--accent); padding-left:11px; font-size:12.5px; color:var(--muted); white-space:pre-wrap; word-break:break-word}
+  .src b{color:var(--ink); font-weight:600}
+  .empty{color:var(--muted); font-size:13.5px; padding:10px 2px}
+  .summary-box{white-space:pre-wrap; line-height:1.75}
+  .err{color:var(--danger); font-size:13.5px; white-space:pre-wrap}
+  .hide{display:none}
+  .foot{margin-top:28px; display:flex; gap:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>카톡 채팅 → 액션 아이템</h1>
+  <p class="sub">카카오톡 대화 CSV를 올리면 답변 안 된 질문·공지거리·이슈 신호를 뽑아냅니다. 분석은 이 컴퓨터의 로컬 모델에서만 이뤄지고, 대화 내용은 밖으로 나가지 않습니다.</p>
+
+  <div id="ready" class="banner hide"></div>
+
+  <div id="drop">
+    <strong>CSV 파일을 끌어다 놓거나 클릭해서 선택하세요</strong>
+    <span>카카오톡 PC → 대화 내용 저장 → CSV</span>
+    <input id="file" type="file" accept=".csv,text/csv" class="hide">
+  </div>
+  <p id="parseErr" class="err" style="margin-top:12px"></p>
+
+  <div id="setup" class="card hide">
+    <div class="stats">
+      <div class="stat"><b id="sTotal">0</b><span>전체 메시지</span></div>
+      <div class="stat"><b id="sKept">0</b><span>분석 대상</span></div>
+      <div class="stat"><b id="sPeople">0</b><span>참여자</span></div>
+      <div class="stat"><b id="sRange">-</b><span>기간</span></div>
+    </div>
+
+    <details id="dropDetails">
+      <summary><span id="sDropped">0</span>개를 노이즈로 제외했습니다 — 무엇이 걸러졌는지 보기</summary>
+      <div id="drops" class="drops"></div>
+    </details>
+
+    <div class="row" style="margin-top:20px">
+      <div class="field">
+        <label for="me">내 이름 (방장)</label>
+        <select id="me"></select>
+      </div>
+      <div class="field">
+        <label for="from">시작일</label>
+        <input id="from" type="date">
+      </div>
+      <div class="field">
+        <label for="to">종료일</label>
+        <input id="to" type="date">
+      </div>
+      <div class="field">
+        <button id="allRange" class="ghost" type="button">전체 기간</button>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:18px">
+      <button id="run" type="button">분석 시작</button>
+      <span id="estimate" class="phase" style="margin:0"></span>
+    </div>
+
+    <progress id="bar" class="hide" max="100" value="0"></progress>
+    <div id="phase" class="phase"></div>
+    <p id="runErr" class="err"></p>
+  </div>
+
+  <div id="results" class="hide"></div>
+  <div id="footActions" class="foot hide">
+    <button id="copyMd" class="ghost" type="button">마크다운으로 복사</button>
+  </div>
+</div>
+
+<script id="core">
+'use strict';
+/* ────────────────────────────────────────────────────────────────
+   순수 로직 — DOM 을 만지지 않는다.
+   테스트에서 이 <script id="core"> 블록만 뽑아 Node 로 돌리므로,
+   여기에 document/window 참조를 넣지 말 것. (test/run-tests.sh 참고)
+   ──────────────────────────────────────────────────────────────── */
+
+/* RFC 4180 상태 머신.
+   실제 카톡 내보내기 파일에 "따옴표 안 개행"이 든 멀티라인 메시지가 있어서
+   text.split('\n') 방식은 반드시 깨진다. 그래서 문자 단위로 훑는다. */
+function parseCsv(text) {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1); // UTF-8 BOM — 안 벗기면 헤더가 "﻿Date" 가 된다
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }  // "" → 이스케이프된 따옴표
+        else inQuotes = false;
+      } else if (c === '\r') {
+        /* 따옴표 안의 CRLF 는 LF 로 정규화 */
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ',') { row.push(field); field = ''; }
+      else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (c === '\r') { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter((r) => r.length > 1 || (r[0] || '').trim() !== '');
+}
+
+/* "2026-08-05 09:12:33" → Date.
+   new Date(문자열) 은 엔진마다 해석이 달라서 직접 뜯는다. */
+function parseAt(s) {
+  const m = /^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec((s || '').trim());
+  if (!m) return null;
+  const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+const RE_MEDIA    = /^(사진|동영상|이모티콘|음성메시지|보이스톡|페이스톡)( \d+장)?$/;
+const RE_FILE     = /^파일:\s*(.+)$/;
+const RE_DELETED  = /^삭제된 메시지입니다\.?$|^메시지가 삭제되었습니다\.?$/;
+const RE_SYSTEM   = /님이 (들어왔습니다|나갔습니다|초대했습니다)\.?$|^(.+)님을 초대했습니다\.?$/;
+const RE_EMOTICON = /^(\([^()]{1,12}\))+$/;                 // (충격)(슬픔)(수줍음)
+const RE_REACTION = /^[ㅋㅎㅠㅜㅡㄷ\s!?.,~^♡♥…ㄱ-ㅎ]+$/; // ㅋㅋㅋ, ㅠㅠ, !!!
+
+/* 노이즈면 사유를, 아니면 null 을 돌려준다. 사유는 UI 에서 그대로 보여준다. */
+function noiseReason(text) {
+  const t = (text || '').trim();
+  if (!t) return '빈 메시지';
+  if (RE_DELETED.test(t)) return '삭제된 메시지';
+  if (RE_MEDIA.test(t)) return '미디어';
+  if (RE_FILE.test(t)) return '파일 첨부';
+  if (RE_SYSTEM.test(t)) return '시스템 알림';
+  if (RE_EMOTICON.test(t)) return '이모티콘';
+  if (RE_REACTION.test(t)) return '리액션';
+  return null;
+}
+
+/* 파싱된 행 → 메시지 배열.
+   Date 가 빈 행(삭제된 메시지 등)은 버리지 않고 직전 메시지의 시각을 승계시킨다.
+   버리면 대화 흐름에 구멍이 나서 "질문 다음에 뭐가 왔는지" 판정이 틀어진다. */
+function toMessages(rows) {
+  if (!rows.length) throw new Error('빈 파일입니다.');
+  const head = rows[0].map((h) => h.trim().toLowerCase());
+  const di = head.indexOf('date'), ui = head.indexOf('user'), mi = head.indexOf('message');
+  if (di < 0 || ui < 0 || mi < 0) {
+    throw new Error('헤더에서 Date,User,Message 열을 찾지 못했습니다.\n카카오톡 PC 에서 "대화 내용 저장 → CSV" 로 내보낸 파일인지 확인해 주세요.');
+  }
+
+  const out = [];
+  let lastAt = null;
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const at = parseAt(r[di]) || lastAt;
+    if (at) lastAt = at;
+    const text = (r[mi] || '').trim();
+    if (!text) continue;
+    out.push({
+      i: out.length,
+      at,
+      user: (r[ui] || '').trim(),
+      text,
+      noise: noiseReason(text),
+      file: (RE_FILE.exec(text) || [])[1] || null,
+    });
+  }
+  if (!out.length) throw new Error('메시지를 한 건도 읽지 못했습니다.');
+  return out;
+}
+
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const hm  = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const stamp = (d) => (d ? `${ymd(d)} ${hm(d)}` : '시각 미상');
+
+/* ── 질문 탐지 ───────────────────────────────────────────────
+   물음표가 없는 질문("프로세스는 연구하고 있나요")이 흔해서 어미도 함께 본다. */
+const RE_QUESTION = /[?？]\s*$|(까요|은가요|인가요|나요|가요|을까|ㄹ까|어때요|어떨까|되나요|될까요|있을까|주실 수|알려주|부탁드려도)\s*[?？]?\s*$/;
+
+/* 형식적 맞장구는 답변으로 치지 않는다. */
+const RE_FILLER = /^(넵+|넹+|네+|웅+|웅|응+|ㅇㅇ+|ok|오케이|굳|good|알겠습니다|알겠어요|확인했습니다|확인이요|감사합니다|감사해요|고맙습니다|수고하셨습니다|고생하셨어요)[.!~\s]*$/i;
+
+function isQuestion(text) { return RE_QUESTION.test((text || '').trim()); }
+
+/* 질문 이후 응답이 있었는지 본다. 반환:
+     'answered'  다른 사람이 실질 텍스트로 답했다 → 후보에서 제외
+     'media'     미디어/파일로만 응답했다 → 답인지 아닌지 불확실. 후보에 넣고 모델이 판정한다
+     'none'      응답이 없거나 리액션뿐이다 → 미답변 유력
+   윈도우를 2시간/5개로 잡은 이유: 업무 채팅은 답이 한참 뒤에 오는 일이 잦아
+   30분으로 자르면 답변된 질문까지 미답변으로 잡힌다. 날짜가 바뀌면 끊는다. */
+function answerState(msgs, qi, windowMs = 2 * 60 * 60 * 1000, windowCount = 5) {
+  const q = msgs[qi];
+  let sawMedia = false, checked = 0;
+
+  for (let j = qi + 1; j < msgs.length && checked < windowCount; j++) {
+    const m = msgs[j];
+    if (!m.user || m.user === q.user) continue;           // 작성자 미상(삭제행)·본인 발화는 응답이 아니다
+    if (q.at && m.at) {
+      if (ymd(m.at) !== ymd(q.at)) break;
+      if (m.at - q.at > windowMs) break;
+    }
+    checked++;
+    if (m.noise === '미디어' || m.noise === '파일 첨부') { sawMedia = true; continue; }
+    if (m.noise) continue;                                 // 이모티콘·리액션은 답변이 아니다
+    if (RE_FILLER.test(m.text)) continue;                  // "넵", "감사합니다" 도 답변이 아니다
+    return 'answered';
+  }
+  return sawMedia ? 'media' : 'none';
+}
+
+/* 규칙으로 미답변 후보를 좁힌다. 7B 모델에게 통째로 "답 안 된 질문 찾아줘" 를
+   시키면 정확도가 크게 떨어져서, 후보를 만든 뒤 판정만 맡긴다. */
+function findUnansweredCandidates(msgs) {
+  const out = [];
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i];
+    if (m.noise || !isQuestion(m.text)) continue;
+    const state = answerState(msgs, i);
+    if (state === 'answered') continue;
+    out.push({ idx: i, at: m.at, user: m.user, text: m.text, uncertain: state === 'media' });
+  }
+  return out;
+}
+
+/* ── 청킹 ────────────────────────────────────────────────────
+   num_ctx 16384 에서 시스템 프롬프트(~800)와 출력 여유(~2000)를 빼면
+   입력은 한국어 6,000자 남짓이 안전선이다. 이 상수는 server.js 의
+   num_ctx 와 한 몸이라 한쪽만 바꾸면 조용히 잘린다. */
+const CHUNK_CHARS = 6000;
+const OVERLAP = 5;
+
+function chunkMessages(msgs, maxChars = CHUNK_CHARS) {
+  const byDay = new Map();
+  for (const m of msgs) {
+    const k = m.at ? ymd(m.at) : '시각미상';
+    if (!byDay.has(k)) byDay.set(k, []);
+    byDay.get(k).push(m);
+  }
+
+  const chunks = [];
+  let cur = [], curLen = 0;
+  const flush = () => { if (cur.length) { chunks.push(cur); cur = []; curLen = 0; } };
+
+  for (const [, dayMsgs] of byDay) {
+    const dayLen = dayMsgs.reduce((n, m) => n + m.text.length + 20, 0);
+
+    if (dayLen > maxChars) {           // 하루가 통째로 한 청크를 넘으면 그 안에서 다시 자른다
+      flush();
+      let part = [], partLen = 0;
+      for (const m of dayMsgs) {
+        const len = m.text.length + 20;
+        if (partLen + len > maxChars && part.length) {
+          chunks.push(part);
+          part = part.slice(-OVERLAP);   // 맥락이 끊기지 않게 뒤쪽 몇 개를 겹쳐 넘긴다
+          partLen = part.reduce((n, x) => n + x.text.length + 20, 0);
+        }
+        part.push(m); partLen += len;
+      }
+      if (part.length) chunks.push(part);
+      continue;
+    }
+
+    if (curLen + dayLen > maxChars) flush();   // 날짜 경계를 우선 지킨다
+    cur = cur.concat(dayMsgs); curLen += dayLen;
+  }
+  flush();
+  return chunks;
+}
+
+/* 모델에게 넘길 대화 원문. 시각·이름을 붙여야 결과에 시각을 달 수 있다. */
+function renderTranscript(msgs) {
+  return msgs.map((m) => `[${stamp(m.at)}] ${m.user || '(작성자 미상)'}: ${m.text}`).join('\n');
+}
+
+
+/* ── 반복 질문(FAQ 후보) 탐지 ────────────────────────────────
+   7B 에게 맡겼더니 요약에서는 "여러 번 물어봤다" 고 인지하면서도 faqs 배열은
+   비워서 돌려줬다. 배열 5개를 한 번에 채우면 뒤쪽 필드에 힘이 빠진다.
+   그래서 미답변 질문과 같은 방식으로 규칙이 후보를 만들고 모델은 다듬기만 한다.
+
+   형태소 분석기 없이(의존성 0개) 한국어 유사도를 재려고 문자 바이그램 자카드를 쓴다.
+   핵심은 어미 제거다 — "회식 장소 알려주실 수 있나요?" 와 "서버 접속 정보 알려주실
+   수 있나요?" 는 어미를 안 벗기면 공통 부분이 커져서 같은 질문으로 묶여버린다. */
+const RE_TAIL = /(을까요|ㄹ까요|인가요|은가요|있을까요|있나요|없나요|되나요|될까요|가능할까요|어떨까요|어때요|알려주실수있나요|주실수있나요|알려주세요|해주세요|부탁드려요|맞나요|나요|까요|가요|어요|에요|예요)$/;
+const RE_LEAD = /^(혹시|저기|근데|그런데|다들|다시|좀|한번)/;
+const FAQ_THRESHOLD = 0.28;
+
+function normQuestion(s) {
+  let t = (s || '').replace(/[?？!.,~…\s]/g, '');
+  for (let i = 0; i < 4; i++) {
+    const n = t.replace(RE_TAIL, '').replace(RE_LEAD, '');
+    if (n === t) break;
+    t = n;
+  }
+  return t;
+}
+
+function bigrams(s) {
+  const t = normQuestion(s), out = new Set();
+  for (let i = 0; i < t.length - 1; i++) out.add(t.slice(i, i + 2));
+  return out;
+}
+
+function similarity(a, b) {
+  const A = bigrams(a), B = bigrams(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const x of A) if (B.has(x)) inter++;
+  return inter / (A.size + B.size - inter);
+}
+
+/* 임계값을 넘는 질문끼리 전이적으로 묶는다(A~B, B~C 면 A,B,C 가 한 묶음).
+   서로 다른 사람이 2명 이상 물어본 묶음만 FAQ 후보로 본다 —
+   같은 사람이 두 번 물었다면 그건 FAQ 가 아니라 무시당한 질문이라 unanswered 쪽 일이다. */
+function findRepeatedQuestions(msgs) {
+  const qs = msgs.filter((m) => !m.noise && isQuestion(m.text) && normQuestion(m.text).length >= 3);
+  const parent = qs.map((_, i) => i);
+  const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[rb] = ra; };
+
+  for (let i = 0; i < qs.length; i++) {
+    for (let j = i + 1; j < qs.length; j++) {
+      if (similarity(qs[i].text, qs[j].text) >= FAQ_THRESHOLD) union(i, j);
+    }
+  }
+
+  const groups = new Map();
+  qs.forEach((m, i) => {
+    const r = find(i);
+    if (!groups.has(r)) groups.set(r, []);
+    groups.get(r).push(m);
+  });
+
+  return [...groups.values()]
+    .filter((g) => g.length >= 2 && new Set(g.map((m) => m.user)).size >= 2)
+    .map((g) => ({
+      question: g[0].text,
+      count: g.length,
+      askers: [...new Set(g.map((m) => m.user))],
+      at: g.map((m) => stamp(m.at)),
+      idx: g.map((m) => m.i),
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+
+/* ── 청크 결과 병합 ──────────────────────────────────────────
+   청크마다 모델을 따로 부르므로, 여러 날에 걸쳐 반복되는 이슈는 청크 수만큼
+   중복돼서 돌아온다. 실제로 4청크짜리 대화에서 이슈가 24건 나왔는데 서로 다른
+   내용은 3가지뿐이었다. 단순히 이어붙이면 방장이 볼 목록이 쓰레기가 된다.
+   그래서 문장 유사도로 묶는다 — FAQ 와 같은 척도를 쓴다. */
+const MERGE_THRESHOLD = 0.5;
+
+function dedupeBy(list, keyOf, pick) {
+  const out = [];
+  for (const x of list) {
+    const k = keyOf(x);
+    if (!k) continue;
+    const hit = out.find((o) => {
+      const ok = keyOf(o);
+      return ok === k || similarity(ok, k) >= MERGE_THRESHOLD;
+    });
+    if (hit) { hit._n = (hit._n || 1) + 1; if (pick) pick(hit, x); }
+    else out.push({ ...x, _n: 1 });
+  }
+  return out;
+}
+
+const SEV_RANK = { low: 0, mid: 1, high: 2 };
+
+function mergeResults(parts) {
+  const flat = (k) => parts.flatMap((p) => (Array.isArray(p[k]) ? p[k] : []));
+
+  // 같은 시각의 같은 질문은 같은 건이다. 후보가 규칙으로 확정돼 있어 표현이 흔들리지 않는다.
+  const seen = new Set();
+  const unanswered = flat('unanswered').filter((x) => {
+    const k = `${x.at}|${x.question}`;
+    if (seen.has(k)) return false;
+    seen.add(k); return true;
+  });
+
+  const notices = dedupeBy(flat('notices'), (x) => x.topic);
+
+  // 중복된 이슈는 하나로 접되, 심각도는 가장 높은 것을 남긴다.
+  // 여러 청크에서 거듭 나왔다는 사실 자체가 신호라 반복 횟수도 들고 간다.
+  const issues = dedupeBy(flat('issues'), (x) => x.signal, (hit, x) => {
+    if ((SEV_RANK[x.severity] ?? 0) > (SEV_RANK[hit.severity] ?? 0)) {
+      hit.severity = x.severity;
+      hit.detail = x.detail;
+    }
+  });
+
+  const faqs = dedupeBy(flat('faqs'), (x) => x.question, (hit, x) => {
+    if (!hit.answer && x.answer) hit.answer = x.answer;
+    if ((x.count || 0) > (hit.count || 0)) hit.count = x.count;
+    if ((!hit.askers || !hit.askers.length) && x.askers) hit.askers = x.askers;
+  });
+
+  return {
+    summary: parts.map((p) => p.summary).filter(Boolean).join('\n\n'),
+    unanswered, notices, issues, faqs,
+    dropped: parts.reduce((a, p) => {
+      for (const k of Object.keys(p.dropped || {})) a[k] = (a[k] || 0) + p.dropped[k];
+      return a;
+    }, {}),
+  };
+}
+
+/* 로컬 7B 실측: 청크당 45~180초, 뒤로 갈수록 느려진다(컨텍스트 누적).
+   낙관적으로 잡으면 사용자가 멈춘 줄 알고 새로고침한다. 넉넉하게 잡는다. */
+const SECS_PER_CHUNK = 75;
+function estimateSeconds(chunkCount) {
+  return chunkCount * SECS_PER_CHUNK + (chunkCount > 1 ? 45 : 0);
+}
+
+if (typeof module !== 'undefined') {
+  module.exports = { parseCsv, parseAt, noiseReason, toMessages, isQuestion,
+    answerState, findUnansweredCandidates, findRepeatedQuestions, similarity, normQuestion,
+    chunkMessages, renderTranscript, mergeResults, dedupeBy, estimateSeconds,
+    ymd, stamp, CHUNK_CHARS, FAQ_THRESHOLD, MERGE_THRESHOLD };
+}
+</script>
+
+<script id="ui">
+'use strict';
+/* DOM 바인딩. 순수 로직은 위 <script id="core"> 에 있다. */
+
+const $ = (id) => document.getElementById(id);
+const state = { msgs: [], me: '', result: null, running: false };
+
+/* 모델이 만든 문자열은 전부 textContent 로만 넣는다. innerHTML 로 바꾸지 말 것. */
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+const clear = (n) => { while (n.firstChild) n.removeChild(n.firstChild); };
+
+/* ── 준비 상태 배너 ─────────────────────────────────────── */
+(async function ready() {
+  const box = $('ready');
+  try {
+    const r = await fetch('/api/config');
+    const c = await r.json();
+    box.className = 'banner ' + (c.running && c.hasModel ? 'ok' : 'warn');
+    clear(box);
+    if (!c.running) {
+      box.appendChild(el('span', null, 'Ollama 가 실행되고 있지 않습니다. 터미널에서 '));
+      box.appendChild(el('code', null, 'ollama serve'));
+      box.appendChild(el('span', null, ' 를 실행한 뒤 새로고침하세요.'));
+    } else if (!c.hasModel) {
+      box.appendChild(el('span', null, `"${c.model}" 모델이 없습니다. 터미널에서 `));
+      box.appendChild(el('code', null, `ollama pull ${c.model}`));
+      box.appendChild(el('span', null, ' 을 실행하세요.'));
+    } else {
+      box.appendChild(el('span', null, `준비 완료 — ${c.model} (로컬 모델, 과금 없음)`));
+    }
+  } catch {
+    box.className = 'banner warn';
+    box.textContent = '서버에 연결하지 못했습니다.';
+  }
+})();
+
+/* ── 파일 입력 ──────────────────────────────────────────── */
+const drop = $('drop'), fileInput = $('file');
+drop.addEventListener('click', () => fileInput.click());
+drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', (e) => {
+  e.preventDefault(); drop.classList.remove('over');
+  if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) load(fileInput.files[0]); });
+
+async function load(file) {
+  $('parseErr').textContent = '';
+  $('results').classList.add('hide');
+  $('footActions').classList.add('hide');
+  try {
+    const msgs = toMessages(parseCsv(await file.text()));
+    state.msgs = msgs;
+    showSetup(msgs);
+  } catch (err) {
+    state.msgs = [];
+    $('setup').classList.add('hide');
+    $('parseErr').textContent = err.message;
+  }
+}
+
+function showSetup(msgs) {
+  const kept = msgs.filter((m) => !m.noise);
+  const dropped = msgs.filter((m) => m.noise);
+  const people = [...new Set(msgs.map((m) => m.user).filter(Boolean))];
+  const dates = msgs.map((m) => m.at).filter(Boolean).sort((a, b) => a - b);
+
+  $('sTotal').textContent = msgs.length.toLocaleString();
+  $('sKept').textContent = kept.length.toLocaleString();
+  $('sPeople').textContent = people.length;
+  $('sRange').textContent = dates.length ? `${ymd(dates[0]).slice(5)} ~ ${ymd(dates[dates.length - 1]).slice(5)}` : '-';
+  $('sDropped').textContent = dropped.length.toLocaleString();
+
+  const box = $('drops'); clear(box);
+  dropped.slice(0, 300).forEach((m) => {
+    const row = el('div');
+    row.appendChild(el('span', 'why', m.noise));
+    row.appendChild(el('span', null, `${m.user || '(작성자 미상)'}: ${m.text.slice(0, 60)}`));
+    box.appendChild(row);
+  });
+  if (dropped.length > 300) box.appendChild(el('div', null, `… 외 ${dropped.length - 300}건`));
+
+  const sel = $('me'); clear(sel);
+  people.forEach((p) => sel.appendChild(el('option', null, p)));
+  sel.value = people[0] || '';
+
+  if (dates.length) {
+    const first = ymd(dates[0]), last = ymd(dates[dates.length - 1]);
+    $('from').min = first; $('from').max = last;
+    $('to').min = first; $('to').max = last;
+    $('to').value = last;
+    // 데이터가 작으면 전체를, 크면 최근 7일을 기본값으로 둔다.
+    // 전체를 기본으로 두면 큰 파일에서 무심코 20분짜리 분석이 시작된다.
+    const full = chunkMessages(kept);
+    if (full.length <= 3) $('from').value = first;
+    else {
+      const d = new Date(dates[dates.length - 1]); d.setDate(d.getDate() - 6);
+      $('from').value = ymd(d) < first ? first : ymd(d);
+    }
+  }
+
+  $('setup').classList.remove('hide');
+  updateEstimate();
+}
+
+$('allRange').addEventListener('click', () => {
+  const dates = state.msgs.map((m) => m.at).filter(Boolean).sort((a, b) => a - b);
+  if (!dates.length) return;
+  $('from').value = ymd(dates[0]);
+  $('to').value = ymd(dates[dates.length - 1]);
+  updateEstimate();
+});
+['from', 'to'].forEach((id) => $(id).addEventListener('change', updateEstimate));
+
+/* 기간으로 자른 메시지. 노이즈는 분석에서 빼되 답변 판정에는 원본이 필요해서 둘 다 돌려준다. */
+function inRange() {
+  const from = $('from').value, to = $('to').value;
+  const all = state.msgs.filter((m) => {
+    if (!m.at) return true;
+    const d = ymd(m.at);
+    return (!from || d >= from) && (!to || d <= to);
+  });
+  return { all, kept: all.filter((m) => !m.noise) };
+}
+
+function updateEstimate() {
+  const { kept } = inRange();
+  const n = chunkMessages(kept).length;
+  const sec = estimateSeconds(n);
+  $('estimate').textContent = kept.length
+    ? `메시지 ${kept.length.toLocaleString()}건 · 조각 ${n}개 · 예상 ${sec < 60 ? `${sec}초` : `약 ${Math.ceil(sec / 60)}분`}`
+    : '이 기간에는 분석할 메시지가 없습니다.';
+  $('run').disabled = !kept.length || state.running;
+}
+
+/* ── 분석 실행 ──────────────────────────────────────────── */
+$('run').addEventListener('click', async () => {
+  const { all, kept } = inRange();
+  if (!kept.length) return;
+
+  state.running = true;
+  state.me = $('me').value;
+  $('run').disabled = true;
+  $('runErr').textContent = '';
+  $('results').classList.add('hide');
+  $('footActions').classList.add('hide');
+  const bar = $('bar'); bar.classList.remove('hide'); bar.value = 0;
+
+  const cands = findUnansweredCandidates(all);
+  const faqCands = findRepeatedQuestions(all);
+  const chunks = chunkMessages(kept);
+  const parts = [];
+  const t0 = Date.now();
+
+  try {
+    for (let i = 0; i < chunks.length; i++) {
+      $('phase').textContent = `대화 조각 ${i + 1}/${chunks.length} 분석 중… (첫 조각은 모델을 올리느라 오래 걸립니다)`;
+      const span = new Set(chunks[i].map((m) => m.i));
+      const body = {
+        transcript: renderTranscript(chunks[i]),
+        me: state.me,
+        candidates: cands.filter((c) => span.has(c.idx)).map((c) => ({ at: stamp(c.at), user: c.user, text: c.text })),
+        faqCandidates: faqCands.filter((f) => f.idx.some((x) => span.has(x)))
+          .map((f) => ({ question: f.question, count: f.count, askers: f.askers })),
+      };
+      const r = await fetch('/api/analyze', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `분석에 실패했습니다 (조각 ${i + 1}).`);
+      parts.push(j);
+      bar.value = ((i + 1) / (chunks.length + (chunks.length > 1 ? 1 : 0))) * 100;
+    }
+
+    const merged = mergeResults(parts);
+
+    if (chunks.length > 1) {
+      $('phase').textContent = '조각별 결과를 하나로 합치는 중…';
+      const r = await fetch('/api/reduce', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ summaries: parts.map((p) => p.summary), faqs: merged.faqs }),
+      });
+      const j = await r.json();
+      if (r.ok) {
+        merged.summary = j.summary || merged.summary;
+        // reduce 가 질문을 다시 쓰면서 answer/askers 를 잃으므로 원본에서 되붙인다.
+        // 대입 대상과 참조 대상이 같으면 헷갈리니 먼저 따로 잡아둔다.
+        const prev = merged.faqs;
+        const rebuilt = (j.faqs || []).map((f) => {
+          const src = prev.find((o) => o.question === f.question
+            || o.question.includes(f.question) || f.question.includes(o.question));
+          return { ...f, answer: src ? src.answer : '', askers: src ? src.askers : [] };
+        });
+        // reduce 가 빈 배열을 돌려주는 일이 있다. 있던 FAQ 를 날리느니 원본을 남긴다.
+        merged.faqs = rebuilt.length ? rebuilt : prev;
+      }
+      bar.value = 100;
+    }
+
+    state.result = merged;
+    render(merged, all, kept.length, Math.round((Date.now() - t0) / 1000));
+  } catch (err) {
+    $('runErr').textContent = err.message;
+  } finally {
+    state.running = false;
+    $('run').disabled = false;
+    $('phase').textContent = '';
+    bar.classList.add('hide');
+  }
+});
+
+/* ── 결과 렌더 ──────────────────────────────────────────── */
+
+/* 모델이 지어낸 항목을 사용자가 걸러낼 수 있도록 그 시각 전후 대화를 보여준다.
+   대조가 안 되는 요약은 신뢰할 수 없다. */
+function contextFor(all, atStr) {
+  if (!atStr) return [];
+  let hit = all.findIndex((m) => m.at && stamp(m.at) === atStr);
+  if (hit < 0) {
+    const day = atStr.slice(0, 10);
+    hit = all.findIndex((m) => m.at && ymd(m.at) === day);
+  }
+  if (hit < 0) return [];
+  return all.slice(Math.max(0, hit - 2), hit + 4).map((m) => ({ ...m, focus: all[hit] === m }));
+}
+
+function itemNode(all, { text, meta, at, tag }) {
+  const item = el('div', 'item');
+  const top = el('div', 'top');
+  const cb = el('input'); cb.type = 'checkbox';
+  cb.addEventListener('change', () => item.classList.toggle('done', cb.checked));
+  const body = el('div', 'body');
+
+  const line = el('div', 'txt');
+  if (tag) { const t = el('span', `tag ${tag.cls}`, tag.label); line.appendChild(t); }
+  line.appendChild(document.createTextNode(text));
+  body.appendChild(line);
+  if (meta) body.appendChild(el('div', 'meta', meta));
+
+  const ctx = contextFor(all, at);
+  if (ctx.length) {
+    const btn = el('button', 'ghost', '원문 보기');
+    btn.style.marginTop = '8px';
+    const src = el('div', 'src'); src.classList.add('hide');
+    ctx.forEach((m) => {
+      const row = el('div');
+      const who = el('b', null, `[${stamp(m.at)}] ${m.user || '(작성자 미상)'}: `);
+      row.appendChild(who);
+      row.appendChild(document.createTextNode(m.text));
+      if (m.focus) row.style.color = 'var(--ink)';
+      src.appendChild(row);
+    });
+    btn.addEventListener('click', () => {
+      const hidden = src.classList.toggle('hide');
+      btn.textContent = hidden ? '원문 보기' : '원문 접기';
+    });
+    body.appendChild(btn);
+    body.appendChild(src);
+  }
+
+  top.appendChild(cb); top.appendChild(body);
+  item.appendChild(top);
+  return item;
+}
+
+function section(root, title, count, builder) {
+  const h = el('h2', null, title);
+  h.appendChild(el('span', 'count', String(count)));
+  root.appendChild(h);
+  builder(root);
+}
+
+function render(r, all, keptCount, secs) {
+  const root = $('results'); clear(root); root.classList.remove('hide');
+
+  const head = el('div', 'card');
+  head.appendChild(el('div', 'meta', `분석 대상 ${keptCount.toLocaleString()}건 · ${$('from').value} ~ ${$('to').value} · ${secs}초 소요 · 기준 인물 ${state.me}`));
+  const sum = el('div', 'summary-box', r.summary || '요약을 만들지 못했습니다.');
+  sum.style.marginTop = '10px';
+  head.appendChild(sum);
+  root.appendChild(head);
+
+  section(root, '답변 안 된 질문', r.unanswered.length, (p) => {
+    if (!r.unanswered.length) return p.appendChild(el('div', 'empty', '이 기간에는 답변이 빠진 질문이 없습니다.'));
+    r.unanswered.forEach((x) => p.appendChild(itemNode(all, {
+      text: x.action || x.question,
+      meta: `${x.at} · ${x.asker}: ${x.question}`,
+      at: x.at,
+    })));
+  });
+
+  section(root, '공지하면 좋을 것', r.notices.length, (p) => {
+    if (!r.notices.length) return p.appendChild(el('div', 'empty', '공지 후보가 없습니다.'));
+    r.notices.forEach((x) => p.appendChild(itemNode(all, { text: x.topic, meta: x.detail, at: x.at })));
+  });
+
+  const SEV = { high: { cls: 'high', label: '즉시' }, mid: { cls: 'mid', label: '지켜보기' }, low: { cls: 'low', label: '참고' } };
+  section(root, '이슈 신호', r.issues.length, (p) => {
+    if (!r.issues.length) return p.appendChild(el('div', 'empty', '눈에 띄는 이슈 신호가 없습니다.'));
+    r.issues.forEach((x) => p.appendChild(itemNode(all, {
+      text: x.signal,
+      meta: x.detail + (x._n > 1 ? `  ·  서로 다른 ${x._n}개 구간에서 반복됨` : ''),
+      at: x.at, tag: SEV[x.severity] || SEV.low,
+    })));
+  });
+
+  section(root, '반복 질문 (FAQ 후보)', r.faqs.length, (p) => {
+    if (!r.faqs.length) return p.appendChild(el('div', 'empty', '두 명 이상이 반복해서 물어본 질문이 없습니다.'));
+    r.faqs.forEach((x) => p.appendChild(itemNode(all, {
+      text: x.question,
+      meta: `${x.count}회${x.askers && x.askers.length ? ` · ${x.askers.join(', ')}` : ''}${x.answer ? ` · 답: ${x.answer}` : ' · 대화에 답이 없습니다'}`,
+      at: null,
+    })));
+  });
+
+  const d = r.dropped || {};
+  const total = Object.values(d).reduce((a, b) => a + b, 0);
+  if (total) {
+    // "결과가 없다" 와 "검증에서 전부 탈락했다" 는 다른 상황이다. 구분해서 알려준다.
+    root.appendChild(el('div', 'empty',
+      `참고: 모델이 내놓은 항목 ${total}건이 검증을 통과하지 못해 제외됐습니다 ` +
+      `(${Object.entries(d).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(', ')}). ` +
+      `근거 없는 항목이거나 형식이 어긋난 경우입니다.`));
+  }
+
+  $('footActions').classList.remove('hide');
+}
+
+/* ── 마크다운 복사 ──────────────────────────────────────── */
+$('copyMd').addEventListener('click', async () => {
+  const r = state.result;
+  if (!r) return;
+  const L = [`# 채팅방 액션 아이템 (${$('from').value} ~ ${$('to').value})`, '', '## 요약', r.summary || '-', ''];
+  const push = (title, list, fmt) => {
+    L.push(`## ${title}`);
+    if (!list.length) L.push('- 없음');
+    else list.forEach((x) => L.push(fmt(x)));
+    L.push('');
+  };
+  push('답변 안 된 질문', r.unanswered, (x) => `- [ ] ${x.action}\n  - ${x.at} ${x.asker}: ${x.question}`);
+  push('공지하면 좋을 것', r.notices, (x) => `- [ ] ${x.topic}\n  - ${x.detail}`);
+  push('이슈 신호', r.issues, (x) => `- [ ] (${x.severity}) ${x.signal}\n  - ${x.detail}`);
+  push('반복 질문', r.faqs, (x) => `- [ ] ${x.question} (${x.count}회)${x.answer ? `\n  - 답: ${x.answer}` : ''}`);
+
+  const btn = $('copyMd');
+  try {
+    await navigator.clipboard.writeText(L.join('\n'));
+    btn.textContent = '복사했습니다';
+  } catch {
+    btn.textContent = '복사에 실패했습니다';
+  }
+  setTimeout(() => { btn.textContent = '마크다운으로 복사'; }, 1600);
+});
+</script>
+</body>
+</html>

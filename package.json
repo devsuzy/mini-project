@@ -1,0 +1,9 @@
+{
+  "name": "kakao-action-items",
+  "version": "0.1.0",
+  "private": true,
+  "description": "카카오톡 그룹채팅 CSV를 올리면 답변 안 된 질문·공지거리·이슈 신호를 뽑아주는 로컬 도구",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js"
+  }
+}
