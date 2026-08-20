@@ -77,15 +77,39 @@ GBNF 는 형태만 강제하고 의미는 강제하지 않으므로 `tidy()` 가
 ## 검증
 
 ```bash
+npm test                               # 전체 단위 스위트 (모델 불필요, 0.7초)
+node test/server.test.js               # 서버 계약만 (프롬프트·스키마·tidy)
 node --check server.js                 # 문법 검사 (빌드 단계 없음)
 node test/e2e.js                       # 허구 샘플로 실제 모델까지 태우기 (~45초)
+
+npm run dev:fake                       # 가짜 Ollama 를 붙여 기동 — 모델 없이 UI 확인
+node test/fake-ollama.js 11500         # 가짜 Ollama 만 따로 띄우기
 
 # Ollama 다운 상태 재현 — 죽은 포트를 가리켜 별도 인스턴스 기동
 PORT=5188 OLLAMA_HOST=http://127.0.0.1:19999 npm start
 ```
 
-**`./test/run.sh` 는 모델을 부르지 않는다.** 프롬프트·스키마·`tidy()` 를 고치면 그 테스트는
-아무것도 잡아주지 못하므로 `node test/e2e.js` 로 허구 샘플과 실제 파일 둘 다 눈으로 확인해야 한다.
+**`test/server.test.js` 가 이 문서의 규칙을 실제로 붙잡고 있다.** `test/fake-ollama.js`
+(스텁 Ollama)를 `OLLAMA_HOST` 로 끼워서 모델 없이 돌린다. 지금 걸려 있는 것:
+
+| 이 문서의 규칙 | 테스트가 잡는 방식 |
+|---|---|
+| `properties` 순서 = 생성 순서, `summary` 는 맨 뒤 | 나간 `format.properties` 키 순서를 직접 비교 |
+| `num_ctx: 16384` 명시 (기본 2048 은 조용히 자름) | 나간 `options.num_ctx` 확인 |
+| `temperature: 0` | 나간 `options.temperature` 확인 |
+| 날짜는 계산 말고 표에서 찾게 | 시스템 프롬프트에 날짜 대조표가 있는지 |
+| `tidy()` 가 후보 밖 질문을 버린다 | 없는 질문을 **골라서 먹이고** `dropped` 확인 |
+| `faqs.count` 는 규칙 값으로 덮어쓴다 | 모델이 `count: 99` 를 줘도 규칙의 `3` 이 남는지 |
+| `severity` 는 high/mid/low 로 제한 | `"critical"` 을 먹여 `low` 로 떨어지는지 |
+| 자리표시자(`<...>`)를 걷어낸다 | `<주제>` 를 먹여 버려지는지 |
+| 장애를 사용자 문장으로 바꾼다 | 404·깨진 JSON·빈 응답을 먹여 안내 문구 확인 |
+| `readBody()` 의 `setEncoding` | 한글 한 글자 **한복판에서 쪼개** 보내고 왕복 비교 |
+| `checkOllama()` 의 정확 매칭 | 태그를 `qwen2.5:3b` 만 두고 `hasModel: false` 확인 |
+| 상한 초과는 400 | 모델이 **아예 호출되지 않았는지**까지 확인 |
+
+이 표의 항목을 고칠 때는 `test/server.test.js` 도 같이 고쳐야 한다. 반대로,
+**여기 없는 것 — 답변 판정의 질, 요약 문장, 필드 배분 — 은 여전히 모델이 필요하다.**
+프롬프트 문구를 손봤으면 `node test/e2e.js` 로 허구 샘플과 실제 파일 둘 다 눈으로 확인해야 한다.
 합격선 케이스는 루트 `CLAUDE.md` 의 "검증" 절에 있다.
 
 ## 알려진 한계 (서버 쪽, 미해결)

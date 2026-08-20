@@ -4,6 +4,13 @@
   "private": true,
   "description": "카카오톡 그룹채팅 CSV를 올리면 답변 안 된 질문·공지거리·이슈 신호를 뽑아주는 로컬 도구",
   "scripts": {
-    "start": "node --env-file-if-exists=.env server.js"
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "./scripts/dev.sh start",
+    "dev:fake": "./scripts/dev.sh start --fake",
+    "dev:restart": "./scripts/dev.sh restart",
+    "dev:stop": "./scripts/dev.sh stop",
+    "dev:logs": "./scripts/dev.sh logs",
+    "test": "./test/run.sh",
+    "test:e2e": "node test/e2e.js"
   }
 }

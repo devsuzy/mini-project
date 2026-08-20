@@ -16,12 +16,23 @@ PORT=3000 npm start                    # 포트 변경
 OLLAMA_MODEL=qwen2.5:14b npm start     # 모델 교체
 OLLAMA_HOST=http://host:11434 npm start
 
-./test/run.sh                          # 파서·필터·탐지·병합 단위 테스트 (모델 불필요, 1초)
+npm run dev                            # 기동 + 준비될 때까지 대기 (./scripts/dev.sh start)
+npm run dev:fake                       # 가짜 Ollama 와 함께 — 모델 없이 UI 가 즉시 채워진다
+npm run dev:restart                    # 재시작 (0.7초). 예전엔 손으로 26초씩 썼다
+npm run dev:stop                       # 정지. 포트를 물고 있는 유령 서버까지 정리한다
+npm run dev:logs                       # 최근 로그 (-f 로 follow)
+
+npm test                               # 전체 단위 스위트 (모델 불필요, 0.7초)
 node test/e2e.js                       # 허구 샘플로 실제 모델까지 태우기 (~45초)
 node test/e2e.js <csv> <내이름>         # 다른 파일로
 
 node --check server.js                 # 문법 검사 (빌드 단계 없음)
 ```
+
+`./scripts/dev.sh` 는 **자기가 띄운 프로세스가 실제로 그 포트를 서빙 중인지 확인한다.**
+확인 없이 `/api/config` 응답만 보면, 새 서버가 `EADDRINUSE` 로 죽어도 먼저 떠 있던
+유령 서버가 대신 응답해서 성공으로 보인다 (실제로 그랬다). npm 을 거치지 않고 node 를
+직접 띄우는 이유도 같다 — npm 을 거치면 pid 가 npm 의 것이라 정지시킬 수 없다.
 
 `npm install` 은 불필요하다 — **의존성이 0개다.** Node 20.12+ (전역 `fetch` 와 `--env-file-if-exists` 필요). `.env` 는 `dotenv` 없이 Node 내장 플래그로 읽는다. 패키지를 추가하기 전에 내장 모듈로 되는지 먼저 확인할 것.
 
@@ -111,7 +122,28 @@ Ollama 가 `description` 을 모델에게 전달하지 않는다는 것, `num_ct
 
 ## 검증
 
-**테스트 스위트는 `./test/run.sh` 뿐이고 모델을 부르지 않는다** (파서·필터·탐지·병합만). 프롬프트를 고치면 이 테스트는 아무것도 잡아주지 못한다 — `node test/e2e.js` 로 두 파일(허구 샘플, 실제 파일) 모두 눈으로 확인해야 한다.
+`./test/run.sh` 가 전부 돌린다. **모델을 부르지 않고 0.7초에 끝난다.**
+
+| 파일 | 무엇을 | 어떻게 |
+|---|---|---|
+| `test/parser.test.js` | 파서·노이즈 필터·질문 탐지·청킹·병합 | 코어 블록을 추출해 Node 로 |
+| `test/server.test.js` | **프롬프트·스키마·`tidy()`·장애 처리** | `test/fake-ollama.js` 를 붙여서 |
+| `test/guard.test.js` | TDD 가드의 쓰기 판정 | 가드를 import 해서 |
+
+**`test/fake-ollama.js` 가 모델 자리를 대신한다.** `OLLAMA_HOST` 만 바꿔 끼우는 스텁이라
+모델 품질과 무관한 두 가지를 결정적으로 확인할 수 있다.
+
+- **나가는 요청**: 스키마 `properties` 순서(`summary` 가 맨 뒤인지), `num_ctx`, `temperature`,
+  시스템 프롬프트에 날짜 표와 방장 이름이 들어갔는지, 후보 목록이 실렸는지.
+- **들어오는 응답**: 후보에 없는 질문, `severity: "critical"`, 자리표시자, 빈 배열, 깨진 JSON,
+  HTTP 404 를 **골라서 먹여** `tidy()` 와 에러 문구를 확인한다. 7B 가 우연히 그걸 뱉을 때까지
+  기다릴 필요가 없다.
+
+가짜 서버는 요청 안의 후보 목록을 그대로 되돌려주므로 `tidy()` 를 전부 통과한다.
+그래서 `npm run dev:fake` 로 띄우면 **모델 없이 UI 가 즉시 채워진다** — 화면 작업에 45초씩 쓰지 않는다.
+
+여전히 모델이 필요한 것: **답변 판정의 질, 요약 문장, 필드 배분.**
+프롬프트 문구를 고쳤으면 `node test/e2e.js` 로 두 파일(허구 샘플, 실제 파일) 모두 눈으로 봐야 한다.
 
 합격선으로 삼는 케이스:
 - 실제 파일의 11:03 `"설치하는 장비 리스트, 스펙, 규격, 제품명 엑셀시트 구할 수 있을까요?"` 가 **미답변으로 잡혀야 한다** (그 뒤로 답이 없다).
@@ -122,7 +154,7 @@ Ollama 가 `description` 을 모델에게 전달하지 않는다는 것, `num_ct
 
 ## TDD 가드 (Claude Code 훅)
 
-`.claude/settings.json` 이 `Write|Edit|MultiEdit` 앞에 `.claude/hooks/tdd-guard.mjs` 를 건다.
+`.claude/settings.json` 이 `Write|Edit|MultiEdit|Bash` 앞에 `.claude/hooks/tdd-guard.mjs` 를 건다.
 **소스를 고치기 전에 실패하는 테스트가 있어야 한다.** 규칙은 하나다:
 
 | 스위트 상태 | 소스 파일 편집 | 이유 |
@@ -135,6 +167,21 @@ Ollama 가 `description` 을 모델에게 전달하지 않는다는 것, `num_ct
 **판정을 못 하는 상황(러너 없음, stdin 깨짐, 저장소 밖 경로)에서는 전부 통과시킨다.**
 가드가 조용히 개발을 막는 것보다 한 번 놓치는 편이 낫다.
 
+**`Bash` 가 matcher 에 있는 이유**: auto 모드에서는 편집이 전부 Bash 로 나간다.
+실측하니 지난 8개 세션의 Bash 192콜 중 **90콜이 heredoc·node -e·python3 로 파일을 쓴 것**
+이었고, `Write|Edit|MultiEdit` 만 보던 가드는 그 전부를 통과시켰다.
+`bashWriteTargets()` 가 명령문에서 쓰기 대상을 뽑는데, 두 가지를 지킨다:
+
+- **쓰기 구문에 직접 붙은 경로만** 센다. 명령문에 등장하는 파일명을 전부 세었더니
+  본문에 우연히 들어 있던 파일명 때문에 멀쩡한 명령이 막혔다.
+- **heredoc 본문은 데이터로 본다.** 본문까지 쉘 문법으로 읽었더니 문서에 예시로 적어둔
+  명령 한 줄 때문에 그 문서를 쓰는 것이 막혔다. 단, 본문이 스크립트인 경우의 쓰기 호출
+  (`writeFileSync`, `open(…,'w')`)은 본문까지 검사한다.
+
+경로를 변수에 담아 넘기는 스크립트는 못 잡는다 — 의도한 트레이드오프다.
+쓰기처럼 안 보이는 명령에는 **스위트를 돌리지 않으므로** 오버헤드가 99ms(node 기동)뿐이고,
+소스 쓰기로 판정될 때만 스위트가 돈다(766ms).
+
 우회는 두 가지다. 테스트로 잡을 수 없는 변경 — `<script id="ui">` 의 DOM 바인딩,
 프롬프트 문구, 주석 — 은 애초에 이 가드가 도와줄 수 없으니 끄고 작업한다.
 
@@ -143,6 +190,9 @@ touch .claude/tdd-guard-off   # 껐다가
 rm .claude/tdd-guard-off      # 다시 켠다
 TDD_GUARD=off claude          # 세션 통째로 끄기
 ```
+
+**끄는 `touch` 는 반드시 별도 호출이어야 한다.** 훅은 명령을 실행하기 *전에* 평가하므로
+끄는 명령과 편집을 한 호출에 묶으면 그대로 막힌다 (실제로 그랬다).
 
 훅 두 개를 조심할 것:
 
