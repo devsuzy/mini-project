@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/tdd-guard.mjs\"",
+            "timeout": 90,
+            "statusMessage": "TDD 가드: RED 확인 중"
+          }
+        ]
+      }
+    ]
+  }
+}

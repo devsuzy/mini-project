@@ -62,3 +62,8 @@ coverage/
 # ── 기타 ──────────────────────────────────────────────
 *.local
 .vercel
+
+# ── Claude Code ───────────────────────────────────────
+# 훅과 프로젝트 설정(.claude/settings.json, .claude/hooks/)은 커밋한다 — 팀 공용이다.
+.claude/settings.local.json
+.claude/tdd-guard-off

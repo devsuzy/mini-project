@@ -120,6 +120,41 @@ Ollama 가 `description` 을 모델에게 전달하지 않는다는 것, `num_ct
 
 서버·프롬프트 쪽 검증 방법(문법 검사, Ollama 다운 상태 재현)은 [`api/CLAUDE.md`](api/CLAUDE.md) 에 있다.
 
+## TDD 가드 (Claude Code 훅)
+
+`.claude/settings.json` 이 `Write|Edit|MultiEdit` 앞에 `.claude/hooks/tdd-guard.mjs` 를 건다.
+**소스를 고치기 전에 실패하는 테스트가 있어야 한다.** 규칙은 하나다:
+
+| 스위트 상태 | 소스 파일 편집 | 이유 |
+|---|---|---|
+| GREEN (`./test/run.sh` exit 0) | **차단** | RED 없이 구현부터 손대는 중이다 |
+| RED (exit ≠ 0) | 허용 | 실패를 통과시키러 가는 길이다 |
+
+소스로 치는 건 `.js`/`.mjs`/`.cjs`/`.html` 중 `test/`·`.claude/` 밖에 있는 것 — `server.js`,
+`index.html`, `api/*.js` 다. 테스트·문서·CSV·설정은 언제나 열려 있다.
+**판정을 못 하는 상황(러너 없음, stdin 깨짐, 저장소 밖 경로)에서는 전부 통과시킨다.**
+가드가 조용히 개발을 막는 것보다 한 번 놓치는 편이 낫다.
+
+우회는 두 가지다. 테스트로 잡을 수 없는 변경 — `<script id="ui">` 의 DOM 바인딩,
+프롬프트 문구, 주석 — 은 애초에 이 가드가 도와줄 수 없으니 끄고 작업한다.
+
+```bash
+touch .claude/tdd-guard-off   # 껐다가
+rm .claude/tdd-guard-off      # 다시 켠다
+TDD_GUARD=off claude          # 세션 통째로 끄기
+```
+
+훅 두 개를 조심할 것:
+
+- **가드 안에서 경로는 반드시 NFC 로 정규화한다.** macOS 는 파일명을 NFD 로 돌려주는데
+  이 저장소 경로에 `강의` 가 들어 있다. 정규화를 안 맞추면 `path.relative` 가 같은 경로를
+  `..` 로 판정해서 저장소 안의 파일을 전부 "바깥"으로 흘려보낸다.
+- **차단 JSON 은 `fs.writeSync(1, …)` 로 쓴다.** 훅의 stdout 은 파이프고, 파이프에서
+  `process.stdout.write` 는 비동기라 곧바로 이어지는 `process.exit()` 가 버퍼를 날린다.
+
+`.claude/settings.json` 을 고친 뒤에는 `/hooks` 를 한 번 열거나 세션을 다시 시작해야
+바뀐 설정이 로드된다.
+
 ## 알려진 한계 (미해결)
 
 | 위치 | 문제 |
@@ -128,6 +163,7 @@ Ollama 가 `description` 을 모델에게 전달하지 않는다는 것, `num_ct
 | `answerState()` | 미디어로만 응답한 경우를 `uncertain` 으로 넘기는데, UI 가 이 표시를 아직 시각적으로 구분해 보여주지 않는다 |
 | `mergeResults()` | 중복 제거 로직은 단위 테스트로만 검증됐다. 큰 파일 E2E 에서는 이슈가 0건으로 나와 실제로 합쳐지는 경로를 타지 못했다 |
 | 취소 | 분석 시작 후 중단할 방법이 없다. 4청크면 4분간 기다려야 한다 |
+| TDD 가드 | GREEN 상태에서는 리팩터링도 막힌다. 동작을 안 바꾸는 정리는 RED 를 만들 수 없으니 `tdd-guard-off` 를 거쳐야 한다 |
 
 프롬프트·스키마·모델 출력 쪽 한계(필드가 실행마다 흔들리는 문제, `action` 주어가 새는 문제,
 청크 경계에서 모델이 맥락을 놓치는 문제)는 [`api/CLAUDE.md`](api/CLAUDE.md) 의 같은 절에 있다.
